@@ -238,7 +238,9 @@
 <div class="toolbar">
   <span class="toolbar-label">Ações:</span>
   <button class="btn btn-cyan" onclick="window.print()">🖨 Imprimir</button>
-  <button class="btn btn-ghost" onclick="exportHTML()">💾 Salvar HTML</button>
+  <button class="btn btn-cyan" onclick="salvarAlteracoes()">💾 Salvar alterações</button>
+  <button class="btn btn-danger" onclick="resetGithubToken()">🔐 Token GitHub</button>
+  <button class="btn btn-ghost" onclick="exportHTML()">📥 Salvar HTML</button>
   <button class="btn btn-ghost" id="editModeBtn" onclick="toggleEditMode()">✏️ Modo Edição</button>
   <button class="btn btn-ghost" onclick="openDatasModal()">🗓 Datas Comemorativas</button>
   <div class="month-nav" id="monthNav"><button class="month-btn" id="mnav0">Jan</button><button class="month-btn" id="mnav1">Fev</button><button class="month-btn active" id="mnav2">Mar</button><button class="month-btn" id="mnav3">Abr</button><button class="month-btn" id="mnav4">Mai</button><button class="month-btn" id="mnav5">Jun</button><button class="month-btn" id="mnav6">Jul</button><button class="month-btn" id="mnav7">Ago</button><button class="month-btn" id="mnav8">Set</button><button class="month-btn" id="mnav9">Out</button><button class="month-btn" id="mnav10">Nov</button><button class="month-btn" id="mnav11">Dez</button></div>
@@ -907,12 +909,217 @@ Slide 2: …" style="min-height:160px"></textarea>
 
 <div class="toast" id="toast"></div>
 
+<script id="persistedCalendarState">window.__PERSISTED_CALENDAR_STATE__ = window.__PERSISTED_CALENDAR_STATE__ || null;</script>
 <script>
 // ─────────────────────────────────────────────
 //  DATA STRUCTURES
 // ─────────────────────────────────────────────
 
 const MONTH_NAMES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+
+const GITHUB_CONFIG = {
+  owner: "COLOQUE_AQUI",
+  repo: "COLOQUE_AQUI",
+  path: "index.html",
+  branch: "main"
+};
+
+const GITHUB_TOKEN_KEY = 'github_token';
+const GITHUB_OLD_CONFIG_KEYS = ['github_owner','github_repo','github_path','github_branch','repo','owner','path','branch'];
+
+function getGithubConfig(){
+  const owner = (GITHUB_CONFIG.owner || '').trim();
+  const repo = (GITHUB_CONFIG.repo || '').trim();
+  const path = String(GITHUB_CONFIG.path || 'index.html').replace(/^\/+/,'').replace(/\/+/g,'/').trim();
+  const branch = (GITHUB_CONFIG.branch || 'main').trim() || 'main';
+
+  if(!owner || !repo || owner === 'COLOQUE_AQUI' || repo === 'COLOQUE_AQUI'){
+    throw new Error('Configure o owner e o repo no objeto GITHUB_CONFIG antes de salvar.');
+  }
+  if(!path){
+    throw new Error('O path do GitHub está vazio.');
+  }
+
+  return { owner, repo, path, branch };
+}
+
+function getGithubToken(forceReset=false){
+  if(forceReset){
+    localStorage.removeItem(GITHUB_TOKEN_KEY);
+  }
+
+  let token = localStorage.getItem(GITHUB_TOKEN_KEY);
+  if(!token){
+    token = window.prompt('Cole o token do GitHub com permissão para atualizar este repositório:');
+    if(!token){
+      throw new Error('Token do GitHub não informado.');
+    }
+    localStorage.setItem(GITHUB_TOKEN_KEY, token.trim());
+    token = token.trim();
+  }
+  return token;
+}
+
+function resetGithubToken(){
+  localStorage.removeItem(GITHUB_TOKEN_KEY);
+  GITHUB_OLD_CONFIG_KEYS.forEach(key => localStorage.removeItem(key));
+  showToast('🔐 Token removido. Ele será solicitado novamente no próximo salvamento.');
+}
+
+function escapeHtmlForInlineScript(value){
+  return JSON.stringify(value).replace(/</g, '\\u003c').replace(/>/g, '\\u003e').replace(/&/g, '\\u0026');
+}
+
+function syncEditableStateFromDom(){
+  const clientEl = document.getElementById('hdrClient');
+  const yearEl = document.getElementById('hdrYear');
+  const subEl = document.getElementById('hdrSub');
+
+  if(clientEl) clientEl.textContent = clientEl.innerText;
+  if(yearEl) yearEl.textContent = yearEl.innerText;
+  if(subEl) subEl.textContent = subEl.innerText;
+
+  document.querySelectorAll('.month-notes[data-month]').forEach(el=>{
+    const month = parseInt(el.getAttribute('data-month'), 10);
+    const idx = MONTHS_CONFIG.findIndex(item => item.month === month);
+    if(idx >= 0){
+      MONTHS_CONFIG[idx].notes = el.innerHTML;
+    }
+  });
+
+  Object.keys(PLAN_DATA).forEach(month=>{
+    const textareas = document.querySelectorAll(`textarea[onchange*="savePlanField(${month},"]`);
+    textareas.forEach(el=>{
+      const match = (el.getAttribute('onchange') || '').match(/savePlanField\(\d+,'([^']+)'/);
+      if(match){
+        savePlanField(Number(month), match[1], el.value);
+      }
+    });
+  });
+}
+
+function collectCalendarState(){
+  syncEditableStateFromDom();
+  return {
+    header: {
+      client: (document.getElementById('hdrClient')?.innerText || '').trim(),
+      year: (document.getElementById('hdrYear')?.innerText || '').trim(),
+      sub: (document.getElementById('hdrSub')?.innerText || '').trim()
+    },
+    POSTS: JSON.parse(JSON.stringify(POSTS)),
+    PLAN_DATA: JSON.parse(JSON.stringify(PLAN_DATA)),
+    MONTHS_CONFIG: JSON.parse(JSON.stringify(MONTHS_CONFIG))
+  };
+}
+
+function applyPersistedState(){
+  const state = window.__PERSISTED_CALENDAR_STATE__;
+  if(!state || typeof state !== 'object') return;
+
+  if(state.header){
+    const clientEl = document.getElementById('hdrClient');
+    const yearEl = document.getElementById('hdrYear');
+    const subEl = document.getElementById('hdrSub');
+    if(clientEl && typeof state.header.client === 'string') clientEl.textContent = state.header.client;
+    if(yearEl && typeof state.header.year === 'string') yearEl.textContent = state.header.year;
+    if(subEl && typeof state.header.sub === 'string') subEl.textContent = state.header.sub;
+  }
+
+  if(Array.isArray(state.POSTS)){
+    POSTS = state.POSTS;
+  }
+
+  if(state.PLAN_DATA && typeof state.PLAN_DATA === 'object'){
+    Object.keys(PLAN_DATA).forEach(key => delete PLAN_DATA[key]);
+    Object.assign(PLAN_DATA, state.PLAN_DATA);
+  }
+
+  if(Array.isArray(state.MONTHS_CONFIG) && state.MONTHS_CONFIG.length === MONTHS_CONFIG.length){
+    state.MONTHS_CONFIG.forEach((savedMonth, idx)=>{
+      MONTHS_CONFIG[idx] = savedMonth;
+    });
+  }
+}
+
+function injectStateIntoHTML(htmlSource, state){
+  const scriptMarkup = `<script id="persistedCalendarState">window.__PERSISTED_CALENDAR_STATE__ = ${escapeHtmlForInlineScript(state)};<\/script>`;
+  if(/<script id="persistedCalendarState">[\s\S]*?<\/script>/.test(htmlSource)){
+    return htmlSource.replace(/<script id="persistedCalendarState">[\s\S]*?<\/script>/, scriptMarkup);
+  }
+  return htmlSource.replace('</body>', `${scriptMarkup}\n</body>`);
+}
+
+function buildSerializableHtml(){
+  const state = collectCalendarState();
+  let src = document.documentElement.outerHTML;
+
+  src = src.replace(/(<span contenteditable="true" id="hdrClient"[^>]*>)([\s\S]*?)(<\/span>)/, `$1${state.header.client}$3`);
+  src = src.replace(/(<em contenteditable="true" id="hdrYear"[^>]*>)([\s\S]*?)(<\/em>)/, `$1${state.header.year}$3`);
+  src = src.replace(/(<span[^>]*id="hdrSub"[^>]*>)([\s\S]*?)(<\/span>)/, `$1${state.header.sub}$3`);
+
+  return injectStateIntoHTML(src, state);
+}
+
+function utf8ToBase64(str){
+  return btoa(unescape(encodeURIComponent(str)));
+}
+
+async function salvarAlteracoes(){
+  try{
+    const { owner, repo, path, branch } = getGithubConfig();
+    const token = getGithubToken();
+    const apiUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${path}`;
+
+    const currentFileResponse = await fetch(apiUrl, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Accept': 'application/vnd.github+json'
+      }
+    });
+
+    if(!currentFileResponse.ok){
+      let detail = '';
+      try{
+        const err = await currentFileResponse.json();
+        detail = err?.message ? ` ${err.message}` : '';
+      }catch(_){}
+      throw new Error(`Não foi possível ler o arquivo atual no GitHub (${currentFileResponse.status}).${detail}`);
+    }
+
+    const currentFileData = await currentFileResponse.json();
+    const html = buildSerializableHtml();
+
+    const updateResponse = await fetch(apiUrl, {
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Accept': 'application/vnd.github+json',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        message: `Atualiza calendário editorial em ${new Date().toISOString()}`,
+        content: utf8ToBase64(html),
+        sha: currentFileData.sha,
+        branch
+      })
+    });
+
+    if(!updateResponse.ok){
+      let detail = '';
+      try{
+        const err = await updateResponse.json();
+        detail = err?.message ? ` ${err.message}` : '';
+      }catch(_){}
+      throw new Error(`Não foi possível salvar no GitHub (${updateResponse.status}).${detail}`);
+    }
+
+    showToast('✅ Alterações salvas no GitHub com sucesso!');
+  }catch(error){
+    console.error(error);
+    alert(error.message || 'Erro ao salvar no GitHub.');
+  }
+}
+
 
 // Each month: { year, month(1-12), firstDow(0=Sun), days, notes, special:{day:'label'} }
 const MONTHS_CONFIG = [
@@ -1361,13 +1568,7 @@ document.getElementById('datasOverlay').addEventListener('click', e=>{if(e.targe
 function exportHTML(){
   const client = (document.getElementById('hdrClient')?.innerText || '').trim();
   const year = (document.getElementById('hdrYear')?.innerText || '').trim();
-  const sub = (document.getElementById('hdrSub')?.innerText || '').trim();
-
-  let src = document.documentElement.outerHTML;
-
-  src = src.replace(/(<span contenteditable="true" id="hdrClient"[^>]*>)([\s\S]*?)(<\/span>)/, `$1${client}$3`);
-  src = src.replace(/(<em contenteditable="true" id="hdrYear"[^>]*>)([\s\S]*?)(<\/em>)/, `$1${year}$3`);
-  src = src.replace(/(<span[^>]*id="hdrSub"[^>]*>)([\s\S]*?)(<\/span>)/, `$1${sub}$3`);
+  const src = buildSerializableHtml();
 
   const blob = new Blob([src], { type: 'text/html;charset=utf-8' });
   const a = document.createElement('a');
@@ -1389,6 +1590,7 @@ function showToast(msg){
 document.getElementById('modalOverlay').addEventListener('click',e=>{if(e.target===e.currentTarget)closeModal();});
 
 // ── Init ──
+applyPersistedState();
 buildMonthNav();
 renderAll();
 
