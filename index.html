@@ -215,133 +215,7 @@
 
   @media print{.toolbar,.add-post-btn,.card-actions,.add-thumb-btn{display:none!important;}body{background:#fff;}.post-card{-webkit-print-color-adjust:exact;print-color-adjust:exact;}}
 </style>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2">
-
-// ── Supabase Site Persistence ──
-const CALENDAR_ID = "la-tabacalera-cafe-2026";
-const CALENDAR_NAME = "La Tabacalera Café";
-const SUPABASE_URL = 'https://aprneolltdkizvfakuus.supabase.co';
-const SUPABASE_ANON_KEY = 'sb_publishable_tmWBQV8mZnk7FBvq1iZ3pA_lprGokcu';
-
-const supabaseClient = window.supabase && typeof window.supabase.createClient === 'function'
-  ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
-  : null;
-
-function getSiteData(){
-  return {
-    html: document.getElementById('monthsContainer')?.innerHTML || '',
-    plan: typeof PLAN_DATA !== 'undefined' ? PLAN_DATA : {},
-    header: {
-      client: document.getElementById('hdrClient')?.innerText || '',
-      year: document.getElementById('hdrYear')?.innerText || '',
-      sub: document.getElementById('hdrSub')?.innerText || ''
-    }
-  };
-}
-
-function applySiteData(data){
-  if(!data) return;
-
-  if(data.html){
-    const el = document.getElementById('monthsContainer');
-    if(el) el.innerHTML = data.html;
-  }
-
-  if(data.plan && typeof PLAN_DATA !== 'undefined'){
-    PLAN_DATA = data.plan;
-  }
-
-  if(data.header){
-    if(document.getElementById('hdrClient')){
-      document.getElementById('hdrClient').innerText = data.header.client || '';
-    }
-    if(document.getElementById('hdrYear')){
-      document.getElementById('hdrYear').innerText = data.header.year || '';
-    }
-    if(document.getElementById('hdrSub')){
-      document.getElementById('hdrSub').innerText = data.header.sub || '';
-    }
-  }
-
-  if(typeof buildMonthNav === 'function') buildMonthNav();
-  if(typeof updateStats === 'function') updateStats();
-  if(typeof renderAll === 'function') renderAll();
-}
-
-function saveLocalBackup(data){
-  try{ localStorage.setItem(CALENDAR_ID, JSON.stringify(data)); }catch(e){ console.warn(e); }
-}
-
-function loadLocalBackup(){
-  const raw = localStorage.getItem(CALENDAR_ID);
-  if(!raw) return null;
-  try { return JSON.parse(raw); } catch { return null; }
-}
-
-async function saveSiteData(){
-  const payload = getSiteData();
-  saveLocalBackup(payload);
-
-  if(!supabaseClient){
-    alert('Salvo só no navegador');
-    return;
-  }
-
-  try{
-    const { error } = await supabaseClient
-      .from('calendarios')
-      .upsert({
-        id: CALENDAR_ID,
-        nome: CALENDAR_NAME,
-        dados: payload
-      }, { onConflict: 'id' });
-
-    if(error){
-      console.error(error);
-      alert('Erro ao salvar no site');
-      return;
-    }
-
-    alert('Salvo no site!');
-  }catch(e){
-    console.error(e);
-    alert('Erro ao salvar no site');
-  }
-}
-
-async function loadSiteData(){
-  if(supabaseClient){
-    try{
-      const { data, error } = await supabaseClient
-        .from('calendarios')
-        .select('dados')
-        .eq('id', CALENDAR_ID)
-        .maybeSingle();
-
-      if(error){
-        console.warn(error);
-      }
-
-      if(data?.dados){
-        applySiteData(data.dados);
-        return;
-      }
-    }catch(e){
-      console.warn(e);
-    }
-  }
-
-  const local = loadLocalBackup();
-  if(local){
-    applySiteData(local);
-  }
-}
-
-document.addEventListener('DOMContentLoaded', async () => {
-  await loadSiteData();
-});
-
-</script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
 
@@ -1516,9 +1390,136 @@ function showToast(msg){
 
 document.getElementById('modalOverlay').addEventListener('click',e=>{if(e.target===e.currentTarget)closeModal();});
 
+
+// ── Supabase Save / Load ──
+const SUPABASE_URL = 'https://aprneolltdkizvfakuus.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_tmWBQV8mZnk7FBvq1iZ3pA_lprGokcu';
+const CALENDAR_ID = 'la-tabacalera-cafe-2026';
+const CALENDAR_NAME = 'La Tabacalera Café';
+
+const supabaseClient = window.supabase && typeof window.supabase.createClient === 'function'
+  ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+  : null;
+
+function getSiteData(){
+  return {
+    html: document.getElementById('monthsContainer')?.innerHTML || '',
+    posts: typeof POSTS !== 'undefined' ? POSTS : [],
+    plan: typeof PLAN_DATA !== 'undefined' ? PLAN_DATA : {},
+    months: typeof MONTHS_CONFIG !== 'undefined' ? MONTHS_CONFIG : [],
+    header: {
+      client: document.getElementById('hdrClient')?.innerText || '',
+      year: document.getElementById('hdrYear')?.innerText || '',
+      sub: document.getElementById('hdrSub')?.innerText || ''
+    }
+  };
+}
+
+function applySiteData(data){
+  if(!data) return;
+
+  if(data.posts && typeof POSTS !== 'undefined'){
+    POSTS.length = 0;
+    data.posts.forEach(p => POSTS.push(p));
+  }
+
+  if(data.plan && typeof PLAN_DATA !== 'undefined'){
+    Object.keys(PLAN_DATA).forEach(k => delete PLAN_DATA[k]);
+    Object.assign(PLAN_DATA, data.plan);
+  }
+
+  if(data.months && typeof MONTHS_CONFIG !== 'undefined'){
+    MONTHS_CONFIG.length = 0;
+    data.months.forEach(m => MONTHS_CONFIG.push(m));
+  }
+
+  if(data.header){
+    if(document.getElementById('hdrClient')) document.getElementById('hdrClient').innerText = data.header.client || '';
+    if(document.getElementById('hdrYear')) document.getElementById('hdrYear').innerText = data.header.year || '';
+    if(document.getElementById('hdrSub')) document.getElementById('hdrSub').innerText = data.header.sub || '';
+  }
+
+  if(typeof renderAll === 'function'){
+    renderAll();
+  }else if(data.html){
+    const el = document.getElementById('monthsContainer');
+    if(el) el.innerHTML = data.html;
+  }
+}
+
+function saveLocalBackup(data){
+  try{ localStorage.setItem(CALENDAR_ID, JSON.stringify(data)); }catch(e){ console.warn(e); }
+}
+
+function loadLocalBackup(){
+  const raw = localStorage.getItem(CALENDAR_ID);
+  if(!raw) return null;
+  try { return JSON.parse(raw); } catch { return null; }
+}
+
+async function saveSiteData(){
+  const payload = getSiteData();
+  saveLocalBackup(payload);
+
+  if(!supabaseClient){
+    alert('Salvo só no navegador');
+    return;
+  }
+
+  try{
+    const { error } = await supabaseClient
+      .from('calendarios')
+      .upsert({
+        id: CALENDAR_ID,
+        nome: CALENDAR_NAME,
+        dados: payload
+      }, { onConflict: 'id' });
+
+    if(error){
+      console.error(error);
+      alert('Erro ao salvar no site');
+      return;
+    }
+
+    alert('Salvo no site!');
+  }catch(e){
+    console.error(e);
+    alert('Erro ao salvar no site');
+  }
+}
+
+// Alias para evitar erro caso algum botão antigo esteja com diferença de maiúsculas/minúsculas.
+window.saveSiteData = saveSiteData;
+window.saveSitedata = saveSiteData;
+
+async function loadSiteData(){
+  if(supabaseClient){
+    try{
+      const { data, error } = await supabaseClient
+        .from('calendarios')
+        .select('dados')
+        .eq('id', CALENDAR_ID)
+        .maybeSingle();
+
+      if(error) console.warn(error);
+
+      if(data?.dados){
+        applySiteData(data.dados);
+        return;
+      }
+    }catch(e){
+      console.warn(e);
+    }
+  }
+
+  const local = loadLocalBackup();
+  if(local) applySiteData(local);
+}
+
 // ── Init ──
 buildMonthNav();
 renderAll();
+document.addEventListener('DOMContentLoaded', () => { loadSiteData(); });
 
 // Intersection observer to highlight active month in nav
 const observer = new IntersectionObserver((entries)=>{
