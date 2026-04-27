@@ -215,6 +215,133 @@
 
   @media print{.toolbar,.add-post-btn,.card-actions,.add-thumb-btn{display:none!important;}body{background:#fff;}.post-card{-webkit-print-color-adjust:exact;print-color-adjust:exact;}}
 </style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2">
+
+// ── Supabase Site Persistence ──
+const CALENDAR_ID = "la-tabacalera-cafe-2026";
+const CALENDAR_NAME = "La Tabacalera Café";
+const SUPABASE_URL = 'https://aprneolltdkizvfakuus.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_tmWBQV8mZnk7FBvq1iZ3pA_lprGokcu';
+
+const supabaseClient = window.supabase && typeof window.supabase.createClient === 'function'
+  ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+  : null;
+
+function getSiteData(){
+  return {
+    html: document.getElementById('monthsContainer')?.innerHTML || '',
+    plan: typeof PLAN_DATA !== 'undefined' ? PLAN_DATA : {},
+    header: {
+      client: document.getElementById('hdrClient')?.innerText || '',
+      year: document.getElementById('hdrYear')?.innerText || '',
+      sub: document.getElementById('hdrSub')?.innerText || ''
+    }
+  };
+}
+
+function applySiteData(data){
+  if(!data) return;
+
+  if(data.html){
+    const el = document.getElementById('monthsContainer');
+    if(el) el.innerHTML = data.html;
+  }
+
+  if(data.plan && typeof PLAN_DATA !== 'undefined'){
+    PLAN_DATA = data.plan;
+  }
+
+  if(data.header){
+    if(document.getElementById('hdrClient')){
+      document.getElementById('hdrClient').innerText = data.header.client || '';
+    }
+    if(document.getElementById('hdrYear')){
+      document.getElementById('hdrYear').innerText = data.header.year || '';
+    }
+    if(document.getElementById('hdrSub')){
+      document.getElementById('hdrSub').innerText = data.header.sub || '';
+    }
+  }
+
+  if(typeof buildMonthNav === 'function') buildMonthNav();
+  if(typeof updateStats === 'function') updateStats();
+  if(typeof renderAll === 'function') renderAll();
+}
+
+function saveLocalBackup(data){
+  try{ localStorage.setItem(CALENDAR_ID, JSON.stringify(data)); }catch(e){ console.warn(e); }
+}
+
+function loadLocalBackup(){
+  const raw = localStorage.getItem(CALENDAR_ID);
+  if(!raw) return null;
+  try { return JSON.parse(raw); } catch { return null; }
+}
+
+async function saveSiteData(){
+  const payload = getSiteData();
+  saveLocalBackup(payload);
+
+  if(!supabaseClient){
+    alert('Salvo só no navegador');
+    return;
+  }
+
+  try{
+    const { error } = await supabaseClient
+      .from('calendarios')
+      .upsert({
+        id: CALENDAR_ID,
+        nome: CALENDAR_NAME,
+        dados: payload
+      }, { onConflict: 'id' });
+
+    if(error){
+      console.error(error);
+      alert('Erro ao salvar no site');
+      return;
+    }
+
+    alert('Salvo no site!');
+  }catch(e){
+    console.error(e);
+    alert('Erro ao salvar no site');
+  }
+}
+
+async function loadSiteData(){
+  if(supabaseClient){
+    try{
+      const { data, error } = await supabaseClient
+        .from('calendarios')
+        .select('dados')
+        .eq('id', CALENDAR_ID)
+        .maybeSingle();
+
+      if(error){
+        console.warn(error);
+      }
+
+      if(data?.dados){
+        applySiteData(data.dados);
+        return;
+      }
+    }catch(e){
+      console.warn(e);
+    }
+  }
+
+  const local = loadLocalBackup();
+  if(local){
+    applySiteData(local);
+  }
+}
+
+document.addEventListener('DOMContentLoaded', async () => {
+  await loadSiteData();
+});
+
+</script>
 </head>
 <body>
 
@@ -238,17 +365,16 @@
 <div class="toolbar">
   <span class="toolbar-label">Ações:</span>
   <button class="btn btn-cyan" onclick="window.print()">🖨 Imprimir</button>
-  <button class="btn btn-cyan" onclick="salvarAlteracoes()">💾 Salvar alterações</button>
-  <button class="btn btn-danger" onclick="resetGithubToken()">🔐 Token GitHub</button>
-  <button class="btn btn-ghost" onclick="exportHTML()">📥 Salvar HTML</button>
+  <button class="btn btn-ghost" onclick="exportHTML()">💾 Salvar HTML</button>
+  <button class="btn btn-cyan" onclick="saveSiteData()">💾 Salvar no site</button>
   <button class="btn btn-ghost" id="editModeBtn" onclick="toggleEditMode()">✏️ Modo Edição</button>
   <button class="btn btn-ghost" onclick="openDatasModal()">🗓 Datas Comemorativas</button>
-  <div class="month-nav" id="monthNav"><button class="month-btn active" id="mnav0">Jan</button><button class="month-btn" id="mnav1">Fev</button><button class="month-btn" id="mnav2">Mar</button><button class="month-btn" id="mnav3">Abr</button><button class="month-btn" id="mnav4">Mai</button><button class="month-btn" id="mnav5">Jun</button><button class="month-btn" id="mnav6">Jul</button><button class="month-btn" id="mnav7">Ago</button><button class="month-btn" id="mnav8">Set</button><button class="month-btn" id="mnav9">Out</button><button class="month-btn" id="mnav10">Nov</button><button class="month-btn" id="mnav11">Dez</button><button class="month-btn" id="mnav0">Jan</button><button class="month-btn" id="mnav1">Fev</button><button class="month-btn" id="mnav2">Mar</button><button class="month-btn" id="mnav3">Abr</button><button class="month-btn" id="mnav4">Mai</button><button class="month-btn" id="mnav5">Jun</button><button class="month-btn" id="mnav6">Jul</button><button class="month-btn" id="mnav7">Ago</button><button class="month-btn" id="mnav8">Set</button><button class="month-btn" id="mnav9">Out</button><button class="month-btn" id="mnav10">Nov</button><button class="month-btn" id="mnav11">Dez</button></div>
+  <div class="month-nav" id="monthNav"><button class="month-btn" id="mnav0">Jan</button><button class="month-btn" id="mnav1">Fev</button><button class="month-btn active" id="mnav2">Mar</button><button class="month-btn" id="mnav3">Abr</button><button class="month-btn" id="mnav4">Mai</button><button class="month-btn" id="mnav5">Jun</button><button class="month-btn" id="mnav6">Jul</button><button class="month-btn" id="mnav7">Ago</button><button class="month-btn" id="mnav8">Set</button><button class="month-btn" id="mnav9">Out</button><button class="month-btn" id="mnav10">Nov</button><button class="month-btn" id="mnav11">Dez</button></div>
 </div>
 
 <div class="stats-bar">
-  <div class="stat-pill"><div class="num" style="color:var(--navy)" id="statTotal">13</div><div class="lbl">Total Posts</div></div>
-  <div class="stat-pill"><div class="num" style="color:var(--arte)" id="statArte">5</div><div class="lbl">Artes</div></div>
+  <div class="stat-pill"><div class="num" style="color:var(--navy)" id="statTotal">12</div><div class="lbl">Total Posts</div></div>
+  <div class="stat-pill"><div class="num" style="color:var(--arte)" id="statArte">4</div><div class="lbl">Artes</div></div>
   <div class="stat-pill"><div class="num" style="color:var(--foto)" id="statFoto">2</div><div class="lbl">Fotos</div></div>
   <div class="stat-pill"><div class="num" style="color:var(--story)" id="statStory">1</div><div class="lbl">Stories</div></div>
   <div class="stat-pill"><div class="num" style="color:var(--reels)" id="statReels">5</div><div class="lbl">Reels</div></div>
@@ -290,19 +416,7 @@
         <textarea class="plan-input" style="min-height:48px;resize:vertical" placeholder="Anotações livres, pendências, decisões, reuniões, contatos…" onchange="savePlanField(1,'observacoes',this.value)"></textarea>
       </div>
     </div>
-  </div><div class="cal-grid-outer"><div class="cal-dow"><div class="cal-dow-cell wknd">Dom</div><div class="cal-dow-cell">Seg</div><div class="cal-dow-cell">Ter</div><div class="cal-dow-cell">Qua</div><div class="cal-dow-cell">Qui</div><div class="cal-dow-cell">Sex</div><div class="cal-dow-cell wknd">Sáb</div></div><div class="cal-weeks"><div class="cal-week"><div class="cal-day empty"><div class="day-num"></div></div><div class="cal-day empty"><div class="day-num"></div></div><div class="cal-day empty"><div class="day-num"></div></div><div class="cal-day empty"><div class="day-num"></div></div><div class="cal-day" data-day="1"><div class="day-num">1</div><div class="special-label">🎆 Ano Novo</div><button class="add-post-btn" onclick="openModal(0,1,true)">＋ post</button></div><div class="cal-day" data-day="2"><div class="day-num">2</div><button class="add-post-btn" onclick="openModal(0,2,true)">＋ post</button></div><div class="cal-day wknd-col" data-day="3"><div class="day-num">3</div><button class="add-post-btn" onclick="openModal(0,3,true)">＋ post</button></div></div><div class="cal-week"><div class="cal-day wknd-col" data-day="4"><div class="day-num">4</div>
-            <div class="post-card arte" onclick="openModal(0,4)">
-              <div class="card-actions">
-                <button class="card-btn" onclick="event.stopPropagation();togglePostado(0,4)" title="Toggle postado">✅</button>
-                <button class="card-btn" onclick="event.stopPropagation();openModal(0,4)">✏️</button>
-                <button class="card-btn" onclick="event.stopPropagation();deletePostByKey(0,4)">🗑</button>
-              </div>
-              <div class="post-type-tag">🎨 Arte</div>
-              
-              <div class="post-title" contenteditable="true" spellcheck="false" onclick="event.stopPropagation()" onblur="updateTitle(0,4,this.innerText)">teste</div>
-              
-              <div class="card-gallery"><button class="add-thumb-btn" onclick="event.stopPropagation();triggerCardImg(0,4)" title="Adicionar foto">＋</button></div>
-            </div></div><div class="cal-day" data-day="5"><div class="day-num">5</div><button class="add-post-btn" onclick="openModal(0,5,true)">＋ post</button></div><div class="cal-day" data-day="6"><div class="day-num">6</div><div class="special-label">🏖️ Feriado RJ</div><button class="add-post-btn" onclick="openModal(0,6,true)">＋ post</button></div><div class="cal-day" data-day="7"><div class="day-num">7</div><button class="add-post-btn" onclick="openModal(0,7,true)">＋ post</button></div><div class="cal-day" data-day="8"><div class="day-num">8</div><button class="add-post-btn" onclick="openModal(0,8,true)">＋ post</button></div><div class="cal-day" data-day="9"><div class="day-num">9</div><button class="add-post-btn" onclick="openModal(0,9,true)">＋ post</button></div><div class="cal-day wknd-col" data-day="10"><div class="day-num">10</div><button class="add-post-btn" onclick="openModal(0,10,true)">＋ post</button></div></div><div class="cal-week"><div class="cal-day wknd-col" data-day="11"><div class="day-num">11</div><button class="add-post-btn" onclick="openModal(0,11,true)">＋ post</button></div><div class="cal-day" data-day="12"><div class="day-num">12</div><button class="add-post-btn" onclick="openModal(0,12,true)">＋ post</button></div><div class="cal-day" data-day="13"><div class="day-num">13</div><button class="add-post-btn" onclick="openModal(0,13,true)">＋ post</button></div><div class="cal-day" data-day="14"><div class="day-num">14</div><button class="add-post-btn" onclick="openModal(0,14,true)">＋ post</button></div><div class="cal-day" data-day="15"><div class="day-num">15</div><button class="add-post-btn" onclick="openModal(0,15,true)">＋ post</button></div><div class="cal-day" data-day="16"><div class="day-num">16</div><button class="add-post-btn" onclick="openModal(0,16,true)">＋ post</button></div><div class="cal-day wknd-col" data-day="17"><div class="day-num">17</div><button class="add-post-btn" onclick="openModal(0,17,true)">＋ post</button></div></div><div class="cal-week"><div class="cal-day wknd-col" data-day="18"><div class="day-num">18</div><button class="add-post-btn" onclick="openModal(0,18,true)">＋ post</button></div><div class="cal-day" data-day="19"><div class="day-num">19</div><button class="add-post-btn" onclick="openModal(0,19,true)">＋ post</button></div><div class="cal-day" data-day="20"><div class="day-num">20</div><button class="add-post-btn" onclick="openModal(0,20,true)">＋ post</button></div><div class="cal-day" data-day="21"><div class="day-num">21</div><button class="add-post-btn" onclick="openModal(0,21,true)">＋ post</button></div><div class="cal-day" data-day="22"><div class="day-num">22</div><button class="add-post-btn" onclick="openModal(0,22,true)">＋ post</button></div><div class="cal-day" data-day="23"><div class="day-num">23</div><button class="add-post-btn" onclick="openModal(0,23,true)">＋ post</button></div><div class="cal-day wknd-col" data-day="24"><div class="day-num">24</div><button class="add-post-btn" onclick="openModal(0,24,true)">＋ post</button></div></div><div class="cal-week"><div class="cal-day wknd-col" data-day="25"><div class="day-num">25</div><button class="add-post-btn" onclick="openModal(0,25,true)">＋ post</button></div><div class="cal-day" data-day="26"><div class="day-num">26</div><button class="add-post-btn" onclick="openModal(0,26,true)">＋ post</button></div><div class="cal-day" data-day="27"><div class="day-num">27</div><button class="add-post-btn" onclick="openModal(0,27,true)">＋ post</button></div><div class="cal-day" data-day="28"><div class="day-num">28</div><button class="add-post-btn" onclick="openModal(0,28,true)">＋ post</button></div><div class="cal-day" data-day="29"><div class="day-num">29</div><button class="add-post-btn" onclick="openModal(0,29,true)">＋ post</button></div><div class="cal-day" data-day="30"><div class="day-num">30</div><button class="add-post-btn" onclick="openModal(0,30,true)">＋ post</button></div><div class="cal-day wknd-col" data-day="31"><div class="day-num">31</div><button class="add-post-btn" onclick="openModal(0,31,true)">＋ post</button></div></div></div></div></div><div class="month-block" id="month-1"><div class="month-header"><div class="month-title">Fevereiro <em>2026</em></div><div class="month-badge">Mês 2</div></div><div class="month-notes" contenteditable="true" data-month="2" placeholder="Descreva a campanha do mês, promoções, objetivos, datas importantes…"></div><div class="plan-panel">
+  </div><div class="cal-grid-outer"><div class="cal-dow"><div class="cal-dow-cell wknd">Dom</div><div class="cal-dow-cell">Seg</div><div class="cal-dow-cell">Ter</div><div class="cal-dow-cell">Qua</div><div class="cal-dow-cell">Qui</div><div class="cal-dow-cell">Sex</div><div class="cal-dow-cell wknd">Sáb</div></div><div class="cal-weeks"><div class="cal-week"><div class="cal-day empty"><div class="day-num"></div></div><div class="cal-day empty"><div class="day-num"></div></div><div class="cal-day empty"><div class="day-num"></div></div><div class="cal-day empty"><div class="day-num"></div></div><div class="cal-day" data-day="1"><div class="day-num">1</div><div class="special-label">🎆 Ano Novo</div><button class="add-post-btn" onclick="openModal(0,1,true)">＋ post</button></div><div class="cal-day" data-day="2"><div class="day-num">2</div><button class="add-post-btn" onclick="openModal(0,2,true)">＋ post</button></div><div class="cal-day wknd-col" data-day="3"><div class="day-num">3</div><button class="add-post-btn" onclick="openModal(0,3,true)">＋ post</button></div></div><div class="cal-week"><div class="cal-day wknd-col" data-day="4"><div class="day-num">4</div><button class="add-post-btn" onclick="openModal(0,4,true)">＋ post</button></div><div class="cal-day" data-day="5"><div class="day-num">5</div><button class="add-post-btn" onclick="openModal(0,5,true)">＋ post</button></div><div class="cal-day" data-day="6"><div class="day-num">6</div><div class="special-label">🏖️ Feriado RJ</div><button class="add-post-btn" onclick="openModal(0,6,true)">＋ post</button></div><div class="cal-day" data-day="7"><div class="day-num">7</div><button class="add-post-btn" onclick="openModal(0,7,true)">＋ post</button></div><div class="cal-day" data-day="8"><div class="day-num">8</div><button class="add-post-btn" onclick="openModal(0,8,true)">＋ post</button></div><div class="cal-day" data-day="9"><div class="day-num">9</div><button class="add-post-btn" onclick="openModal(0,9,true)">＋ post</button></div><div class="cal-day wknd-col" data-day="10"><div class="day-num">10</div><button class="add-post-btn" onclick="openModal(0,10,true)">＋ post</button></div></div><div class="cal-week"><div class="cal-day wknd-col" data-day="11"><div class="day-num">11</div><button class="add-post-btn" onclick="openModal(0,11,true)">＋ post</button></div><div class="cal-day" data-day="12"><div class="day-num">12</div><button class="add-post-btn" onclick="openModal(0,12,true)">＋ post</button></div><div class="cal-day" data-day="13"><div class="day-num">13</div><button class="add-post-btn" onclick="openModal(0,13,true)">＋ post</button></div><div class="cal-day" data-day="14"><div class="day-num">14</div><button class="add-post-btn" onclick="openModal(0,14,true)">＋ post</button></div><div class="cal-day" data-day="15"><div class="day-num">15</div><button class="add-post-btn" onclick="openModal(0,15,true)">＋ post</button></div><div class="cal-day" data-day="16"><div class="day-num">16</div><button class="add-post-btn" onclick="openModal(0,16,true)">＋ post</button></div><div class="cal-day wknd-col" data-day="17"><div class="day-num">17</div><button class="add-post-btn" onclick="openModal(0,17,true)">＋ post</button></div></div><div class="cal-week"><div class="cal-day wknd-col" data-day="18"><div class="day-num">18</div><button class="add-post-btn" onclick="openModal(0,18,true)">＋ post</button></div><div class="cal-day" data-day="19"><div class="day-num">19</div><button class="add-post-btn" onclick="openModal(0,19,true)">＋ post</button></div><div class="cal-day" data-day="20"><div class="day-num">20</div><button class="add-post-btn" onclick="openModal(0,20,true)">＋ post</button></div><div class="cal-day" data-day="21"><div class="day-num">21</div><button class="add-post-btn" onclick="openModal(0,21,true)">＋ post</button></div><div class="cal-day" data-day="22"><div class="day-num">22</div><button class="add-post-btn" onclick="openModal(0,22,true)">＋ post</button></div><div class="cal-day" data-day="23"><div class="day-num">23</div><button class="add-post-btn" onclick="openModal(0,23,true)">＋ post</button></div><div class="cal-day wknd-col" data-day="24"><div class="day-num">24</div><button class="add-post-btn" onclick="openModal(0,24,true)">＋ post</button></div></div><div class="cal-week"><div class="cal-day wknd-col" data-day="25"><div class="day-num">25</div><button class="add-post-btn" onclick="openModal(0,25,true)">＋ post</button></div><div class="cal-day" data-day="26"><div class="day-num">26</div><button class="add-post-btn" onclick="openModal(0,26,true)">＋ post</button></div><div class="cal-day" data-day="27"><div class="day-num">27</div><button class="add-post-btn" onclick="openModal(0,27,true)">＋ post</button></div><div class="cal-day" data-day="28"><div class="day-num">28</div><button class="add-post-btn" onclick="openModal(0,28,true)">＋ post</button></div><div class="cal-day" data-day="29"><div class="day-num">29</div><button class="add-post-btn" onclick="openModal(0,29,true)">＋ post</button></div><div class="cal-day" data-day="30"><div class="day-num">30</div><button class="add-post-btn" onclick="openModal(0,30,true)">＋ post</button></div><div class="cal-day wknd-col" data-day="31"><div class="day-num">31</div><button class="add-post-btn" onclick="openModal(0,31,true)">＋ post</button></div></div></div></div></div><div class="month-block" id="month-1"><div class="month-header"><div class="month-title">Fevereiro <em>2026</em></div><div class="month-badge">Mês 2</div></div><div class="month-notes" contenteditable="true" data-month="2" placeholder="Descreva a campanha do mês, promoções, objetivos, datas importantes…"></div><div class="plan-panel">
     <div class="plan-header-row">
       <span class="plan-icon">📋</span>
       <span>Planejamento do Mês</span>
@@ -376,29 +490,29 @@
     <div class="plan-grid">
       <div class="plan-cell">
         <div class="plan-label"><span>🎯</span> Objetivos de Campanha</div>
-        <textarea class="plan-input tall" placeholder="Ex: Aumentar leads, lançar promoção, gerar awareness…" onchange="savePlanField(4,'objetivos',this.value)">Aumentar alcance dentro do perfil.</textarea>
+        <textarea class="plan-input tall" placeholder="Ex: Aumentar leads, lançar promoção, gerar awareness…" onchange="savePlanField(4,'objetivos',this.value)"></textarea>
       </div>
       <div class="plan-cell">
         <div class="plan-label"><span>💰</span> Investimento em Mídia</div>
-        <textarea class="plan-input tall" placeholder="Ex: R$ 1.000 — Meta Ads + Google Ads…" onchange="savePlanField(4,'investimento',this.value)">800 reais</textarea>
+        <textarea class="plan-input tall" placeholder="Ex: R$ 1.000 — Meta Ads + Google Ads…" onchange="savePlanField(4,'investimento',this.value)"></textarea>
       </div>
       <div class="plan-cell">
         <div class="plan-label"><span>💸</span> Tráfego Pago</div>
-        <textarea class="plan-input tall" placeholder="Ex: R$ 600 Meta Ads (feed + stories), R$ 400 Google. Públicos, segmentações…" onchange="savePlanField(4,'trafego',this.value)">800 em meta ads.</textarea>
+        <textarea class="plan-input tall" placeholder="Ex: R$ 600 Meta Ads (feed + stories), R$ 400 Google. Públicos, segmentações…" onchange="savePlanField(4,'trafego',this.value)"></textarea>
       </div>
       <div class="plan-cell">
         <div class="plan-label"><span>🌟</span> Influenciadores</div>
-        <textarea class="plan-input tall" placeholder="Ex: @perfil — tipo de conteúdo, formato, prazo…" onchange="savePlanField(4,'influenciadores',this.value)">Nenhum.</textarea>
+        <textarea class="plan-input tall" placeholder="Ex: @perfil — tipo de conteúdo, formato, prazo…" onchange="savePlanField(4,'influenciadores',this.value)"></textarea>
       </div>
       <div class="plan-cell" style="border-right:none">
         <div class="plan-label"><span>👤</span> Persona do Mês</div>
-        <textarea class="plan-input tall" placeholder="Ex: Público-alvo, faixa etária, dores, plataformas que usa…" onchange="savePlanField(4,'persona',this.value)">Empresários </textarea>
+        <textarea class="plan-input tall" placeholder="Ex: Público-alvo, faixa etária, dores, plataformas que usa…" onchange="savePlanField(4,'persona',this.value)"></textarea>
       </div>
     </div>
     <div class="plan-grid-bottom">
       <div class="plan-cell-full">
         <div class="plan-label"><span>📝</span> Observações Gerais</div>
-        <textarea class="plan-input" style="min-height:48px;resize:vertical" placeholder="Anotações livres, pendências, decisões, reuniões, contatos…" onchange="savePlanField(4,'observacoes',this.value)">Verificar eventos nas quarta-feira com o jazz.</textarea>
+        <textarea class="plan-input" style="min-height:48px;resize:vertical" placeholder="Anotações livres, pendências, decisões, reuniões, contatos…" onchange="savePlanField(4,'observacoes',this.value)"></textarea>
       </div>
     </div>
   </div><div class="cal-grid-outer"><div class="cal-dow"><div class="cal-dow-cell wknd">Dom</div><div class="cal-dow-cell">Seg</div><div class="cal-dow-cell">Ter</div><div class="cal-dow-cell">Qua</div><div class="cal-dow-cell">Qui</div><div class="cal-dow-cell">Sex</div><div class="cal-dow-cell wknd">Sáb</div></div><div class="cal-weeks"><div class="cal-week"><div class="cal-day empty"><div class="day-num"></div></div><div class="cal-day empty"><div class="day-num"></div></div><div class="cal-day empty"><div class="day-num"></div></div><div class="cal-day" data-day="1"><div class="day-num">1</div><div class="special-label">🤥 Dia da Mentira</div><button class="add-post-btn" onclick="openModal(3,1,true)">＋ post</button></div><div class="cal-day" data-day="2"><div class="day-num">2</div><div class="special-label">🧩 Consciência do Autismo</div>
@@ -803,14 +917,14 @@
 <div class="modal-overlay" id="modalOverlay">
   <div class="modal">
     <div class="modal-header">
-      <h3>Editar Post · <span id="modalDateLabel">4/1/2026</span></h3>
+      <h3>Editar Post · <span id="modalDateLabel"></span></h3>
       <button class="modal-close" onclick="closeModal()">✕</button>
     </div>
     <div class="modal-body">
       <div class="form-group">
         <label>Tipo de Conteúdo</label>
         <div class="type-grid">
-          <div class="type-opt selected" data-type="arte" onclick="selectType('arte')">🎨 Arte</div>
+          <div class="type-opt" data-type="arte" onclick="selectType('arte')">🎨 Arte</div>
           <div class="type-opt" data-type="foto" onclick="selectType('foto')">📸 Foto</div>
           <div class="type-opt" data-type="story" onclick="selectType('story')">📱 Story</div>
           <div class="type-opt" data-type="reels" onclick="selectType('reels')">🎬 Reels</div>
@@ -821,7 +935,7 @@
         <label>Título / Frase da Postagem</label>
         <input type="text" id="modalPostTitle" placeholder="Ex: Nem todo dia precisa ser correria">
       </div>
-      <div class="form-group" id="fieldImgObs" style="">
+      <div class="form-group" id="fieldImgObs" style="display:none">
         <label>Observações de Imagem / Vídeo</label>
         <textarea id="modalImgObs" placeholder="Descreva a imagem ideal, enquadramento, luz, referências…" style="min-height:120px"></textarea>
       </div>
@@ -838,13 +952,14 @@ Slide 2: …" style="min-height:160px"></textarea>
         <label>Nº de Slides</label>
         <input type="text" id="modalSlidesNum" placeholder="Ex: 7 slides">
       </div>
-      <div class="form-group" id="fieldCaption" style="">
+      <div class="form-group" id="fieldCaption">
         <label>Legenda completa</label>
         <textarea id="modalCaption" placeholder="Texto, hashtags, telefone…"></textarea>
       </div>
       <div class="form-group">
         <div class="mgal-label">Imagens / Fotos <span class="mgal-hint">— arraste ou clique em ＋</span></div>
-        <div class="modal-gallery" id="modalGallery" ondragover="event.preventDefault();this.classList.add('drag-over')" ondragleave="this.classList.remove('drag-over')" ondrop="handleDrop(event)"><button class="mgal-add" type="button"><span style="font-size:22px">＋</span><span class="lbl">foto</span></button></div>
+        <div class="modal-gallery" id="modalGallery" ondragover="event.preventDefault();this.classList.add('drag-over')" ondragleave="this.classList.remove('drag-over')" ondrop="handleDrop(event)">
+        </div>
       </div>
       <div class="form-group" id="fieldVideoLink" style="display:none">
         <label>🎬 Link do Vídeo</label>
@@ -918,219 +1033,14 @@ Slide 2: …" style="min-height:160px"></textarea>
   </div>
 </div>
 
-<div class="toast" id="toast">✅ Post salvo!</div>
+<div class="toast" id="toast"></div>
 
-<script id="persistedCalendarState">window.__PERSISTED_CALENDAR_STATE__ = {"header":{"client":"La Tabacalera Café","year":"2026","sub":"CALENDÁRIO EDITORIAL 2026"},"POSTS":[{"month":4,"day":2,"type":"reels","title":"Tela em 3","pending":false,"trafego":false,"postado":false,"imgs":[],"videoLink":"","slides":"","slidesNum":"","descricao":"Reels visualmente impactante usando a divisão em 3 telas simultâneas. Cada tela mostra um pilar do La Tabacalera: café, ambiente e whisky.","imgObs":"Formato: Reels. Estilo: cinematográfico, sofisticado, elegante. Foco: mostrar os 3 pilares da casa (café, ambiente, whisky). Trilha: jazz suave ou lo-fi piano. Final com logo e contato.","roteiro":"","caption":"Três experiências.\nUm só lugar.\n\n☕ O café que desperta.\n🪑 O ambiente que acolhe.\n🥃 O whisky que encerra.\n\nAqui cada momento tem o seu ritual.\n\n📍 Travessa do Ouvidor, 17 — Centro, RJ\n📲 Reservas: (21) 99994-9084"},{"month":4,"day":6,"type":"arte","title":"Um espaço para viver grandes momentos","pending":false,"trafego":false,"postado":false,"imgs":[],"videoLink":"","slides":"","slidesNum":"","roteiro":"","descricao":"Arte com frase aspiracional sobre o espaço. Foto do ambiente com tratamento escuro e elegante como fundo, reforçando o clima sofisticado da casa. Início de semana, mensagem de convite sutil ao público.","imgObs":"Formato: Post feed (arte). Estilo: escuro, elegante, tipografia marcante. Imagem: foto do ambiente com overlay ou filtro. Logo no rodapé.\n\nTexto da arte:\n\"Um espaço para viver grandes momentos.\"","caption":"Tem lugar que você visita.\nTem lugar que você vive.\n\nO La Tabacalera é desses que ficam na memória.\n\nUm café bem tirado.\nUma conversa que rende.\nUm whisky que fecha a noite.\n\nVem viver o seu momento. ☕🥃\n\n📍 Travessa do Ouvidor, 17 — Centro, RJ\n📲 Reservas: (21) 99994-9084"},{"month":4,"day":8,"type":"reels","title":"Preparação de drinks dinâmico","pending":false,"trafego":false,"postado":false,"imgs":[],"videoLink":"","slides":"","slidesNum":"","descricao":"Reels dinâmico mostrando o preparo de um drink autoral à base de café ou whisky. Ritmo acelerado, cortes rápidos, trilha envolvente.","imgObs":"Formato: Reels. Estilo: dinâmico, rápido, bartender em ação. Foco: preparação do drink, ingredientes, acabamento. Trilha: batida eletrônica suave ou jazz animado. Final com logo e contato.","roteiro":"","caption":"Aqui, cada drink tem história.\n\nCafé, gelo, whisky\ne aquele toque que só quem entende sabe fazer.\n\nVem assistir de perto. 🎬🥃\n\n📍 Travessa do Ouvidor, 17 — Centro, RJ\n📲 Reservas: (21) 99994-9084"},{"month":4,"day":10,"type":"arte","title":"Onde encontros se tornam oportunidades","pending":false,"trafego":false,"postado":false,"imgs":[],"videoLink":"","slides":"","slidesNum":"","roteiro":"","descricao":"Arte voltada ao público profissional do Centro do Rio — executivos, advogados, empreendedores. Posiciona o La Tabacalera como ponto de encontro para networking e reuniões informais.","imgObs":"Formato: Post feed (arte). Estilo: corporativo-sofisticado, tons escuros. Imagem: conversa no ambiente ou copos na mesa. Logo no rodapé.\n\nTexto da arte:\n\"Onde encontros se tornam oportunidades.\"","caption":"Nem toda reunião precisa de sala de escritório.\n\nÀs vezes, o melhor negócio nasce numa conversa\ncom um bom café na mão\ne o ambiente certo ao redor.\n\nLa Tabacalera.\nO lugar onde ideias encontram o momento certo. ☕\n\n📍 Travessa do Ouvidor, 17 — Centro, RJ\n📲 Reservas: (21) 99994-9084"},{"month":4,"day":14,"type":"story","title":"Dia Mundial do Café — Stories","pending":false,"trafego":false,"postado":false,"imgs":[],"videoLink":"","slides":"","slidesNum":"","roteiro":"","descricao":"Sequência de 3 stories celebrando o Dia Mundial do Café. Formato leve e interativo com enquete.","imgObs":"Story 1: Arte com \"14 de abril — Dia Mundial do Café ☕\" + Enquete: \"Quantos cafés você toma por dia?\" Opções: 1 / 2-3 / perdi a conta\n\nStory 2: Foto do café sendo preparado no La Tabacalera. Texto: \"O nosso? É especial.\"\n\nStory 3: CTA final: \"Vem comemorar com a gente!\" 📍 Travessa do Ouvidor, 17","caption":""},{"month":4,"day":14,"type":"foto","title":"Drink café — Dia Mundial do Café","pending":false,"trafego":false,"postado":false,"imgs":[],"videoLink":"","slides":"","slidesNum":"","roteiro":"","descricao":"Foto bem produzida de um drink à base de café — espresso martini, café gelado com whisky ou qualquer especialidade da casa. Foco na textura, na cor, no copo. Iluminação quente, fundo escuro.","imgObs":"Formato: Foto no feed. Estilo: close-up, iluminação aconchegante, fundo escuro. Foco: drink de café como protagonista. Logo discreto.","caption":"Hoje é o dia dele. ☕\n\n14 de abril — Dia Mundial do Café.\n\nE aqui no La Tabacalera,\ncafé não é só bebida.\n\nÉ ritual.\nÉ encontro.\nÉ o começo de uma boa conversa.\n\nVem celebrar com a gente. 🤎\n\n📍 Travessa do Ouvidor, 17 — Centro, RJ\n📲 Reservas: (21) 99994-9084"},{"month":4,"day":16,"type":"reels","title":"Mosaico de cenas","pending":false,"trafego":false,"postado":false,"imgs":[],"videoLink":"","slides":"","slidesNum":"","descricao":"Reels no formato mosaico — uma sequência rápida de cenas que juntas contam a atmosfera completa da casa. Não é sobre um produto específico, é sobre a experiência.","imgObs":"Formato: Reels. Estilo: cinematográfico, cortes rápidos, mosaico. Foco: atmosfera geral, sensação do espaço. Trilha: jazz ou lo-fi com batida marcante. Final com logo e contato.","roteiro":"","caption":"Cada cena, um detalhe.\nCada detalhe, uma razão pra voltar.\n\nO aroma do café.\nO brilho do whisky.\nO som das boas conversas.\n\nIsso tudo num só lugar. ☕🥃\n\n📍 Travessa do Ouvidor, 17 — Centro, RJ\n📲 Reservas: (21) 99994-9084"},{"month":4,"day":20,"type":"arte","title":"Ambiente, conversa e tempo bem vivido","pending":false,"trafego":false,"postado":false,"imgs":[],"videoLink":"","slides":"","slidesNum":"","roteiro":"","descricao":"Arte que valoriza o lado \"refúgio\" do La Tabacalera — um lugar no Centro do Rio pra desacelerar. Foco na experiência de sentar, conversar e aproveitar sem pressa.","imgObs":"Formato: Post feed (arte). Estilo: aconchegante, warm tones, tipografia limpa. Imagem: foto do ambiente com pessoas ou mesa posta. Logo no rodapé.\n\nTexto da arte:\n\"Ambiente, conversa e tempo bem vivido.\"","caption":"Tem dias que o melhor programa\né sentar, pedir um café\ne deixar a conversa fluir.\n\nSem pressa.\nSem tela.\nSó o momento.\n\nLa Tabacalera — onde o tempo é bem vivido. ☕\n\n📍 Travessa do Ouvidor, 17 — Centro, RJ\n📲 Reservas: (21) 99994-9084"},{"month":4,"day":22,"type":"reels","title":"Takes do espaço completo","pending":false,"trafego":false,"postado":false,"imgs":[],"videoLink":"","slides":"","slidesNum":"","descricao":"Reels de apresentação institucional — mostra o espaço completo para quem ainda não conhece. Tour virtual, excelente para alcance e salvamentos.","imgObs":"Formato: Reels. Estilo: institucional, cinematográfico, câmera fluida. Foco: espaço completo — entrada, interior, detalhes, produtos. Trilha: instrumental sofisticado. Final com logo e contato.","roteiro":"","caption":"Você já conhece o La Tabacalera?\n\nWhisky e café\nno centro histórico do Rio.\n\nUm espaço que combina tradição,\nsabor e boas conversas.\n\nVem conhecer pessoalmente. 🤎\n\n📍 Travessa do Ouvidor, 17 — Centro, RJ\n📲 Reservas: (21) 99994-9084"},{"month":4,"day":24,"type":"arte","title":"Café para começar, conversa para continuar","pending":false,"trafego":false,"postado":false,"imgs":[],"videoLink":"","slides":"","slidesNum":"","roteiro":"","descricao":"Arte que reforça a proposta central da casa — o café como porta de entrada para experiências mais longas. Frase simples, memorável, com alto potencial de compartilhamento.","imgObs":"Formato: Post feed (arte). Estilo: minimalista-sofisticado, fundo escuro, tipografia clara. Imagem: xícara de café com ambiente desfocado ao fundo. Logo no rodapé.\n\nTexto da arte:\n\"Café para começar, conversa para continuar.\"","caption":"O café abre a conversa.\n\nO ambiente mantém.\n\nE o whisky?\nEsse é pra quando a noite pede mais um capítulo. 🥃\n\nLa Tabacalera.\nCada visita, um novo momento.\n\n📍 Travessa do Ouvidor, 17 — Centro, RJ\n📲 Reservas: (21) 99994-9084"},{"month":4,"day":28,"type":"foto","title":"Espaço de garrafas","pending":false,"trafego":false,"postado":false,"imgs":[],"videoLink":"","slides":"","slidesNum":"","roteiro":"","descricao":"Foto produzida da coleção de garrafas de whisky — estante, recorte do bar ou composição artística com garrafas, copos e iluminação dramática. Mostra autoridade e variedade no universo do whisky.","imgObs":"Formato: Foto no feed. Estilo: close-up ou plano médio, iluminação dramática, fundo escuro. Foco: garrafas de whisky como protagonistas. Logo discreto.","caption":"Por trás do balcão,\ncada garrafa tem uma história.\n\nSingle malt, blend, turfa, mel…\nAqui tem whisky pra todo paladar\ne conversa pra toda ocasião. 🥃\n\nQual é o seu?\n\n📍 Travessa do Ouvidor, 17 — Centro, RJ\n📲 Reservas: (21) 99994-9084"},{"month":4,"day":30,"type":"reels","title":"Vídeo com temática Jazz","pending":false,"trafego":false,"postado":false,"imgs":[],"videoLink":"","slides":"","slidesNum":"","descricao":"Reels temático aproveitando o Dia Internacional do Jazz (30/04). Conecta a identidade do La Tabacalera — café, whisky, sofisticação — com a cultura jazz.","imgObs":"Formato: Reels. Estilo: cinematográfico, jazz bar aesthetic, câmera lenta. Foco: atmosfera + data comemorativa. Trilha: jazz clássico (Miles Davis, Chet Baker ou similar). Final com logo e contato.","roteiro":"","caption":"Hoje é dia de jazz. 🎷\n\nE se tem um lugar que combina com essa vibe,\né aqui.\n\nCafé forte.\nWhisky na medida.\nE aquela trilha que faz o tempo parar.\n\nFeliz Dia Internacional do Jazz.\nCelebra com a gente. 🤎\n\n📍 Travessa do Ouvidor, 17 — Centro, RJ\n📲 Reservas: (21) 99994-9084"},{"month":1,"day":4,"type":"arte","title":"teste","caption":"","imgObs":"","roteiro":"","videoLink":"","slides":"","slidesNum":"","pending":false,"postado":false,"trafego":false,"imgs":[]}],"PLAN_DATA":{"1":{"objetivos":"","investimento":"","trafego":"","influenciadores":"","persona":"","observacoes":""},"2":{"objetivos":"","investimento":"","trafego":"","influenciadores":"","persona":"","observacoes":""},"3":{"objetivos":"","investimento":"","trafego":"","influenciadores":"","persona":"","observacoes":""},"4":{"objetivos":"Aumentar alcance dentro do perfil.","investimento":"800 reais","trafego":"800 em meta ads.","influenciadores":"Nenhum.","persona":"Empresários ","observacoes":"Verificar eventos nas quarta-feira com o jazz."},"5":{"objetivos":"","investimento":"","trafego":"","influenciadores":"","persona":"","observacoes":""},"6":{"objetivos":"","investimento":"","trafego":"","influenciadores":"","persona":"","observacoes":""},"7":{"objetivos":"","investimento":"","trafego":"","influenciadores":"","persona":"","observacoes":""},"8":{"objetivos":"","investimento":"","trafego":"","influenciadores":"","persona":"","observacoes":""},"9":{"objetivos":"","investimento":"","trafego":"","influenciadores":"","persona":"","observacoes":""},"10":{"objetivos":"","investimento":"","trafego":"","influenciadores":"","persona":"","observacoes":""},"11":{"objetivos":"","investimento":"","trafego":"","influenciadores":"","persona":"","observacoes":""},"12":{"objetivos":"","investimento":"","trafego":"","influenciadores":"","persona":"","observacoes":""}},"MONTHS_CONFIG":[{"year":2026,"month":1,"firstDow":4,"days":31,"notes":"","special":{"1":"🎆 Ano Novo","6":"🏖️ Feriado RJ"}},{"year":2026,"month":2,"firstDow":0,"days":28,"notes":"","special":{"16":"🎭 Carnaval","17":"🎭 Carnaval","18":"🎭 Quarta-feira de Cinzas"}},{"year":2026,"month":3,"firstDow":0,"days":31,"notes":"","special":{"8":"👩 Dia da Mulher","20":"🌿 Início do Outono"}},{"year":2026,"month":4,"firstDow":3,"days":30,"notes":"La Tabacalera Café — 12 posts planejados (5 Reels · 4 Artes · 2 Fotos · 1 Story)","special":{"1":"🤥 Dia da Mentira","2":"🧩 Consciência do Autismo","3":"✝️ Sexta-Feira Santa","5":"🐣 Páscoa","6":"🙏 São Benedito","7":"🌍 Dia Mundial da Saúde","8":"🎗️ Combate ao Câncer","13":"💋 Dia do Beijo","14":"☕ Dia Mundial do Café","21":"🇧🇷 Tiradentes","22":"🌍 Dia da Terra","23":"📚 Dia Int. do Livro","24":"🥩 Dia Int. do Churrasco","28":"👵 Dia da Sogra","30":"🎷 Dia Int. do Jazz"}},{"year":2026,"month":5,"firstDow":5,"days":31,"notes":"","special":{"10":"💐 Dia das Mães","31":"🟡 Fim Maio Amarelo"}},{"year":2026,"month":6,"firstDow":1,"days":30,"notes":"","special":{"5":"🌍 Meio Ambiente","12":"💑 Dia dos Namorados"}},{"year":2026,"month":7,"firstDow":3,"days":31,"notes":"","special":{}},{"year":2026,"month":8,"firstDow":6,"days":31,"notes":"","special":{"9":"👨 Dia dos Pais"}},{"year":2026,"month":9,"firstDow":2,"days":30,"notes":"","special":{"7":"🇧🇷 Independência","15":"🛍️ Dia do Cliente","22":"🌸 Primavera"}},{"year":2026,"month":10,"firstDow":4,"days":31,"notes":"","special":{"2":"👶 Dia das Crianças","12":"🇧🇷 N.Sra. Aparecida","31":"🎃 Halloween"}},{"year":2026,"month":11,"firstDow":0,"days":30,"notes":"","special":{"2":"✝️ Finados","15":"🇧🇷 Proclamação Rep.","20":"⚫ Black Friday"}},{"year":2026,"month":12,"firstDow":2,"days":31,"notes":"","special":{"8":"🎄 Imaculada Conceição","25":"🎄 Natal","31":"🥂 Réveillon"}}]};</script>
 <script>
 // ─────────────────────────────────────────────
 //  DATA STRUCTURES
 // ─────────────────────────────────────────────
 
 const MONTH_NAMES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
-
-const GITHUB_CONFIG = {
-  owner: "DigiThree-Planejamentos",
-  repo: "calendario-la-tabacalera",
-  path: "index.html",
-  branch: "main"
-};
-
-const GITHUB_TOKEN_KEY = 'github_token';
-const GITHUB_OLD_CONFIG_KEYS = ['github_owner','github_repo','github_path','github_branch','repo','owner','path','branch'];
-
-function getGithubConfig(){
-  const owner = (GITHUB_CONFIG.owner || '').trim();
-  const repo = (GITHUB_CONFIG.repo || '').trim();
-  const path = String(GITHUB_CONFIG.path || 'index.html').replace(/^\/+/,'').replace(/\/+/g,'/').trim();
-  const branch = (GITHUB_CONFIG.branch || 'main').trim() || 'main';
-
-  if(!owner || !repo || owner === 'COLOQUE_AQUI' || repo === 'COLOQUE_AQUI'){
-    throw new Error('Configure o owner e o repo no objeto GITHUB_CONFIG antes de salvar.');
-  }
-  if(!path){
-    throw new Error('O path do GitHub está vazio.');
-  }
-
-  return { owner, repo, path, branch };
-}
-
-function getGithubToken(forceReset=false){
-  if(forceReset){
-    localStorage.removeItem(GITHUB_TOKEN_KEY);
-  }
-
-  let token = localStorage.getItem(GITHUB_TOKEN_KEY);
-  if(!token){
-    token = window.prompt('Cole o token do GitHub com permissão para atualizar este repositório:');
-    if(!token){
-      throw new Error('Token do GitHub não informado.');
-    }
-    localStorage.setItem(GITHUB_TOKEN_KEY, token.trim());
-    token = token.trim();
-  }
-  return token;
-}
-
-function resetGithubToken(){
-  localStorage.removeItem(GITHUB_TOKEN_KEY);
-  GITHUB_OLD_CONFIG_KEYS.forEach(key => localStorage.removeItem(key));
-  showToast('🔐 Token removido. Ele será solicitado novamente no próximo salvamento.');
-}
-
-function escapeHtmlForInlineScript(value){
-  return JSON.stringify(value).replace(/</g, '\\u003c').replace(/>/g, '\\u003e').replace(/&/g, '\\u0026');
-}
-
-function syncEditableStateFromDom(){
-  const clientEl = document.getElementById('hdrClient');
-  const yearEl = document.getElementById('hdrYear');
-  const subEl = document.getElementById('hdrSub');
-
-  if(clientEl) clientEl.textContent = clientEl.innerText;
-  if(yearEl) yearEl.textContent = yearEl.innerText;
-  if(subEl) subEl.textContent = subEl.innerText;
-
-  document.querySelectorAll('.month-notes[data-month]').forEach(el=>{
-    const month = parseInt(el.getAttribute('data-month'), 10);
-    const idx = MONTHS_CONFIG.findIndex(item => item.month === month);
-    if(idx >= 0){
-      MONTHS_CONFIG[idx].notes = el.innerHTML;
-    }
-  });
-
-  Object.keys(PLAN_DATA).forEach(month=>{
-    const textareas = document.querySelectorAll(`textarea[onchange*="savePlanField(${month},"]`);
-    textareas.forEach(el=>{
-      const match = (el.getAttribute('onchange') || '').match(/savePlanField\(\d+,'([^']+)'/);
-      if(match){
-        savePlanField(Number(month), match[1], el.value);
-      }
-    });
-  });
-}
-
-function collectCalendarState(){
-  syncEditableStateFromDom();
-  return {
-    header: {
-      client: (document.getElementById('hdrClient')?.innerText || '').trim(),
-      year: (document.getElementById('hdrYear')?.innerText || '').trim(),
-      sub: (document.getElementById('hdrSub')?.innerText || '').trim()
-    },
-    POSTS: JSON.parse(JSON.stringify(POSTS)),
-    PLAN_DATA: JSON.parse(JSON.stringify(PLAN_DATA)),
-    MONTHS_CONFIG: JSON.parse(JSON.stringify(MONTHS_CONFIG))
-  };
-}
-
-function applyPersistedState(){
-  const state = window.__PERSISTED_CALENDAR_STATE__;
-  if(!state || typeof state !== 'object') return;
-
-  if(state.header){
-    const clientEl = document.getElementById('hdrClient');
-    const yearEl = document.getElementById('hdrYear');
-    const subEl = document.getElementById('hdrSub');
-    if(clientEl && typeof state.header.client === 'string') clientEl.textContent = state.header.client;
-    if(yearEl && typeof state.header.year === 'string') yearEl.textContent = state.header.year;
-    if(subEl && typeof state.header.sub === 'string') subEl.textContent = state.header.sub;
-  }
-
-  if(Array.isArray(state.POSTS)){
-    POSTS = state.POSTS;
-  }
-
-  if(state.PLAN_DATA && typeof state.PLAN_DATA === 'object'){
-    Object.keys(PLAN_DATA).forEach(key => delete PLAN_DATA[key]);
-    Object.assign(PLAN_DATA, state.PLAN_DATA);
-  }
-
-  if(Array.isArray(state.MONTHS_CONFIG) && state.MONTHS_CONFIG.length === MONTHS_CONFIG.length){
-    state.MONTHS_CONFIG.forEach((savedMonth, idx)=>{
-      MONTHS_CONFIG[idx] = savedMonth;
-    });
-  }
-}
-
-function injectStateIntoHTML(htmlSource, state){
-  const scriptMarkup = `<script id="persistedCalendarState">window.__PERSISTED_CALENDAR_STATE__ = ${escapeHtmlForInlineScript(state)};<\/script>`;
-  if(/<script id="persistedCalendarState">[\s\S]*?<\/script>/.test(htmlSource)){
-    return htmlSource.replace(/<script id="persistedCalendarState">[\s\S]*?<\/script>/, scriptMarkup);
-  }
-  return htmlSource.replace('</body>', `${scriptMarkup}\n</body>`);
-}
-
-function buildSerializableHtml(){
-  const state = collectCalendarState();
-  let src = document.documentElement.outerHTML;
-
-  src = src.replace(/(<span contenteditable="true" id="hdrClient"[^>]*>)([\s\S]*?)(<\/span>)/, `$1${state.header.client}$3`);
-  src = src.replace(/(<em contenteditable="true" id="hdrYear"[^>]*>)([\s\S]*?)(<\/em>)/, `$1${state.header.year}$3`);
-  src = src.replace(/(<span[^>]*id="hdrSub"[^>]*>)([\s\S]*?)(<\/span>)/, `$1${state.header.sub}$3`);
-
-  return injectStateIntoHTML(src, state);
-}
-
-function utf8ToBase64(str){
-  return btoa(unescape(encodeURIComponent(str)));
-}
-
-async function salvarAlteracoes(){
-  try{
-    const { owner, repo, path, branch } = getGithubConfig();
-    const token = getGithubToken();
-    const apiUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${path}`;
-
-    const currentFileResponse = await fetch(apiUrl, {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Accept': 'application/vnd.github+json'
-      }
-    });
-
-    if(!currentFileResponse.ok){
-      let detail = '';
-      try{
-        const err = await currentFileResponse.json();
-        detail = err?.message ? ` ${err.message}` : '';
-      }catch(_){}
-      throw new Error(`Não foi possível ler o arquivo atual no GitHub (${currentFileResponse.status}).${detail}`);
-    }
-
-    const currentFileData = await currentFileResponse.json();
-    const html = buildSerializableHtml();
-
-    const updateResponse = await fetch(apiUrl, {
-      method: 'PUT',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Accept': 'application/vnd.github+json',
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        message: `Atualiza calendário editorial em ${new Date().toISOString()}`,
-        content: utf8ToBase64(html),
-        sha: currentFileData.sha,
-        branch
-      })
-    });
-
-    if(!updateResponse.ok){
-      let detail = '';
-      try{
-        const err = await updateResponse.json();
-        detail = err?.message ? ` ${err.message}` : '';
-      }catch(_){}
-      throw new Error(`Não foi possível salvar no GitHub (${updateResponse.status}).${detail}`);
-    }
-
-    showToast('✅ Alterações salvas no GitHub com sucesso!');
-  }catch(error){
-    console.error(error);
-    alert(error.message || 'Erro ao salvar no GitHub.');
-  }
-}
-
 
 // Each month: { year, month(1-12), firstDow(0=Sun), days, notes, special:{day:'label'} }
 const MONTHS_CONFIG = [
@@ -1579,7 +1489,13 @@ document.getElementById('datasOverlay').addEventListener('click', e=>{if(e.targe
 function exportHTML(){
   const client = (document.getElementById('hdrClient')?.innerText || '').trim();
   const year = (document.getElementById('hdrYear')?.innerText || '').trim();
-  const src = buildSerializableHtml();
+  const sub = (document.getElementById('hdrSub')?.innerText || '').trim();
+
+  let src = document.documentElement.outerHTML;
+
+  src = src.replace(/(<span contenteditable="true" id="hdrClient"[^>]*>)([\s\S]*?)(<\/span>)/, `$1${client}$3`);
+  src = src.replace(/(<em contenteditable="true" id="hdrYear"[^>]*>)([\s\S]*?)(<\/em>)/, `$1${year}$3`);
+  src = src.replace(/(<span[^>]*id="hdrSub"[^>]*>)([\s\S]*?)(<\/span>)/, `$1${sub}$3`);
 
   const blob = new Blob([src], { type: 'text/html;charset=utf-8' });
   const a = document.createElement('a');
@@ -1601,7 +1517,6 @@ function showToast(msg){
 document.getElementById('modalOverlay').addEventListener('click',e=>{if(e.target===e.currentTarget)closeModal();});
 
 // ── Init ──
-applyPersistedState();
 buildMonthNav();
 renderAll();
 
@@ -1616,8 +1531,7 @@ const observer = new IntersectionObserver((entries)=>{
   });
 },{threshold:0.15});
 document.querySelectorAll('.month-block').forEach(el=>observer.observe(el));
-</script><input type="file" accept="image/*" multiple="" style="display: none;"><input type="file" accept="image/*" multiple="" style="display: none;">
-
+</script><input type="file" accept="image/*" multiple="" style="display: none;">
 
 
 </body></html>
